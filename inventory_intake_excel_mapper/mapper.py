@@ -430,6 +430,10 @@ def map_sources_to_target(
             (header for header in headers if normalize_header(header) == "quantity"),
             None,
         )
+        uom_column = next(
+            (header for header in headers if normalize_header(header) == "uom"),
+            None,
+        )
         mapped = pd.DataFrame(index=source_df.index)
         for target in headers:
             source_col = mapping.get(target)
@@ -451,6 +455,8 @@ def map_sources_to_target(
         elif config.append and not existing.empty:
             mapped = pd.concat([existing, mapped], ignore_index=True)
 
+        if uom_column:
+            mapped[uom_column] = "EA"
         mapped = drop_zero_quantity_rows(mapped, quantity_column)
         mapped = drop_zero_rows(mapped, config.drop_zero_mode)
         mapped = fill_blanks(mapped, config.fill_value)
@@ -478,7 +484,6 @@ def map_sources_to_target(
                     if rich_text is not None:
                         cell = ws.cell(row=row_idx, column=col_idx)
                         cell.value = rich_text
-                        cell.data_type = "inlineStr"
                         continue
                 ws.cell(row=row_idx, column=col_idx, value=_to_excel_value(value))
 
