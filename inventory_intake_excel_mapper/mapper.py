@@ -251,16 +251,83 @@ def _build_leftover_series(source_df: pd.DataFrame, columns: Sequence[str]) -> p
     if not columns:
         return pd.Series([pd.NA] * len(source_df), index=source_df.index)
 
+    def first_non_blank(value: object) -> object:
+        if isinstance(value, pd.Series):
+            for item in value.tolist():
+                if not is_blank(item):
+                    return item
+            return pd.NA
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                if not is_blank(item):
+                    return item
+            return pd.NA
+        if np is not None and isinstance(value, np.ndarray):
+            for item in value.tolist():
+                if not is_blank(item):
+                    return item
+            return pd.NA
+        return value
+
     def build_row(row: pd.Series) -> object:
         parts = []
         for col in columns:
-            value = row.get(col)
+            value = first_non_blank(row.get(col))
             if is_blank(value):
                 continue
             parts.append(f"{col}: {value}")
         return " ; ".join(parts) if parts else pd.NA
 
     return source_df.apply(build_row, axis=1)
+
+
+def apply_mapping_overrides(
+    mapping: Dict[str, Optional[str]],
+    source_headers: Sequence[str],
+    target_headers: Sequence[str],
+    target_path: Path,
+) -> Dict[str, Optional[str]]:
+    source_norm = {normalize_header(h): h for h in source_headers}
+    target_hint = target_path.stem.lower()
+
+    def set_if_exists(target: str, candidates: Sequence[str]) -> None:
+        for candidate in candidates:
+            if candidate in source_norm:
+                mapping[target] = source_norm[candidate]
+                return
+
+    for target in target_headers:
+        target_norm = normalize_header(target)
+        if target_norm == "mpn":
+            set_if_exists(
+                target,
+                [
+                    "manufacturer pn",
+                    "manufacturer part number",
+                    "mfr pn",
+                    "mfr part number",
+                    "mfg pn",
+                    "mfg part number",
+                    "manufacturer part no",
+                ],
+            )
+        if target_norm == "quantity":
+            if "mob" in target_hint:
+                set_if_exists(target, ["usage in n7n30 main", "n7n30 main"])
+            elif "pam" in target_hint:
+                set_if_exists(target, ["usage in n7n30 pam", "n7n30 pam"])
+            else:
+                set_if_exists(
+                    target,
+                    [
+                        "usage in n7n30 main",
+                        "n7n30 main",
+                        "usage in n7n30 pam",
+                        "n7n30 pam",
+                    ],
+                )
+
+    return mapping
 
 
 def _append_text_series(primary: pd.Series, extra: pd.Series) -> pd.Series:
@@ -307,6 +374,12 @@ def map_sources_to_target(
             raise ValueError(f"No headers detected in sheet: {sheet_name}")
 
         mapping = build_header_mapping(source_df.columns.tolist(), headers, config.min_score)
+        mapping = apply_mapping_overrides(
+            mapping,
+            source_df.columns.tolist(),
+            headers,
+            target_path,
+        )
         mapped_sources = {source for source in mapping.values() if source}
         unmapped_sources = [col for col in source_df.columns if col not in mapped_sources]
         note_columns = [
