@@ -44,6 +44,12 @@ def normalize_header(value: object) -> str:
 def is_blank(value: object) -> bool:
     if value is None:
         return True
+    if isinstance(value, pd.Series):
+        return value.map(is_blank).all()
+    if isinstance(value, (list, tuple)):
+        return all(is_blank(v) for v in value)
+    if np is not None and isinstance(value, np.ndarray):
+        return pd.isna(value).all()
     if isinstance(value, str) and not value.strip():
         return True
     if pd.isna(value):
