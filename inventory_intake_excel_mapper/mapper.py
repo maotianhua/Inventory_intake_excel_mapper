@@ -96,15 +96,41 @@ def build_header_mapping(
     return mapping
 
 
-def load_sources(paths: Iterable[Path], sheet_name: Optional[str]) -> pd.DataFrame:
+def load_sources(
+    paths: Iterable[Path],
+    sheet_name: Optional[str],
+    header_scan_rows: int = 20,
+) -> pd.DataFrame:
     frames: List[pd.DataFrame] = []
     for path in paths:
-        if sheet_name:
-            df = pd.read_excel(path, sheet_name=sheet_name, dtype=object)
+        wb = load_workbook(path, data_only=True)
+        names = [sheet_name] if sheet_name else wb.sheetnames
+        for name in names:
+            if name not in wb.sheetnames:
+                raise ValueError(f"Sheet not found in {path}: {name}")
+            ws = wb[name]
+            header_row = detect_header_row(ws, header_scan_rows)
+            header_values = [cell.value for cell in ws[header_row]]
+            last_idx = None
+            for idx, value in enumerate(header_values):
+                if normalize_header(value):
+                    last_idx = idx
+            if last_idx is None:
+                continue
+            header_values = header_values[: last_idx + 1]
+            df = pd.read_excel(
+                path,
+                sheet_name=name,
+                header=header_row - 1,
+                dtype=object,
+            )
+            header_values += [""] * (len(df.columns) - len(header_values))
+            keep_indices = [
+                idx for idx, value in enumerate(header_values) if normalize_header(value)
+            ]
+            df = df.iloc[:, keep_indices]
+            df.columns = [str(header_values[idx]).strip() for idx in keep_indices]
             frames.append(df)
-        else:
-            all_sheets = pd.read_excel(path, sheet_name=None, dtype=object)
-            frames.extend(all_sheets.values())
 
     if not frames:
         return pd.DataFrame()

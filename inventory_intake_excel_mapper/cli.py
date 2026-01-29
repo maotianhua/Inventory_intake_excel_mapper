@@ -80,7 +80,7 @@ def main(argv: List[str] | None = None) -> int:
         header_scan_rows=args.header_scan_rows,
     )
 
-    source_df = load_sources(sources, config.source_sheet)
+    source_df = load_sources(sources, config.source_sheet, config.header_scan_rows)
 
     output_dir = Path(args.output_dir)
     if not args.inplace:
