@@ -282,10 +282,13 @@ def map_sources_to_target(
             for header in headers
             if normalize_header(header) in {"description", "comment", "comments"}
         ]
-        mapped = pd.DataFrame({
-            target: source_df[mapping[target]] if mapping[target] in source_df.columns else pd.NA
-            for target in headers
-        })
+        mapped = pd.DataFrame(index=source_df.index)
+        for target in headers:
+            source_col = mapping.get(target)
+            if source_col in source_df.columns:
+                mapped[target] = source_df[source_col]
+            else:
+                mapped[target] = pd.NA
         if unmapped_sources and note_columns:
             extra_notes = _build_leftover_series(source_df, unmapped_sources)
             for note_column in note_columns:
