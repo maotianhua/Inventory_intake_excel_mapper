@@ -19,6 +19,8 @@ except Exception:  # pragma: no cover - numpy comes with pandas but guard anyway
     np = None
 
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText, InlineFont, TextBlock
+from openpyxl.styles.colors import Color
 
 
 @dataclass
@@ -256,6 +258,36 @@ def _to_excel_value(value: object) -> object:
     return value
 
 
+def build_camtech_rich_text(value: object) -> Optional[CellRichText]:
+    if not isinstance(value, str):
+        return None
+    key = "CAMTECH PN:"
+    if key not in value:
+        return None
+
+    normal_font = InlineFont()
+    highlight_font = InlineFont(b=True, color=Color(rgb="FF0000FF"))
+    rich = CellRichText()
+    pos = 0
+
+    while True:
+        idx = value.find(key, pos)
+        if idx == -1:
+            break
+        if idx > pos:
+            rich.append(TextBlock(normal_font, value[pos:idx]))
+        end = value.find(" ; ", idx)
+        if end == -1:
+            end = len(value)
+        rich.append(TextBlock(highlight_font, value[idx:end]))
+        pos = end
+
+    if pos < len(value):
+        rich.append(TextBlock(normal_font, value[pos:]))
+
+    return rich
+
+
 def _build_leftover_series(source_df: pd.DataFrame, columns: Sequence[str]) -> pd.Series:
     if not columns:
         return pd.Series([pd.NA] * len(source_df), index=source_df.index)
@@ -440,6 +472,13 @@ def map_sources_to_target(
             row_idx = start_row + offset
             _apply_template_style(ws, template_row, row_idx, max_col)
             for col_idx, value in enumerate(row, start=1):
+                header = headers[col_idx - 1] if col_idx - 1 < len(headers) else ""
+                if normalize_header(header) in {"description", "comment", "comments"}:
+                    rich_text = build_camtech_rich_text(value)
+                    if rich_text is not None:
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        cell.value = rich_text
+                        continue
                 ws.cell(row=row_idx, column=col_idx, value=_to_excel_value(value))
 
     wb.save(output_path)
