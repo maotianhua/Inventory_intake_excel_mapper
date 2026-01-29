@@ -33,3 +33,4 @@ excel-mapper \
 - The tool preserves target workbook formatting by editing cells in-place.
 - Header detection scans the first 20 rows by default; adjust with `--header-scan-rows`.
 - If a target header does not find a match above `--min-score`, the column will be filled with `N/A`.
+- Any source columns that do not map to a target header are appended into a `description` or `comment` column as `Header: value`.

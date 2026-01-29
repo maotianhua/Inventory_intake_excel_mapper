@@ -41,6 +41,16 @@ def normalize_header(value: object) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def is_blank(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    if pd.isna(value):
+        return True
+    return False
+
+
 def _best_match(target: str, candidates: Sequence[str]) -> Tuple[Optional[str], int]:
     if not candidates:
         return None, 0
@@ -205,6 +215,38 @@ def _to_excel_value(value: object) -> object:
     return value
 
 
+def _build_leftover_series(source_df: pd.DataFrame, columns: Sequence[str]) -> pd.Series:
+    if not columns:
+        return pd.Series([pd.NA] * len(source_df), index=source_df.index)
+
+    def build_row(row: pd.Series) -> object:
+        parts = []
+        for col in columns:
+            value = row.get(col)
+            if is_blank(value):
+                continue
+            parts.append(f"{col}: {value}")
+        return " ; ".join(parts) if parts else pd.NA
+
+    return source_df.apply(build_row, axis=1)
+
+
+def _append_text_series(primary: pd.Series, extra: pd.Series) -> pd.Series:
+    def combine(value: object, addition: object) -> object:
+        if is_blank(value) and is_blank(addition):
+            return pd.NA
+        if is_blank(value):
+            return addition
+        if is_blank(addition):
+            return value
+        return f"{value} ; {addition}"
+
+    return pd.Series(
+        [combine(a, b) for a, b in zip(primary.tolist(), extra.tolist())],
+        index=primary.index,
+    )
+
+
 def map_sources_to_target(
     source_df: pd.DataFrame,
     target_path: Path,
@@ -227,16 +269,27 @@ def map_sources_to_target(
         while headers and not normalize_header(headers[-1]):
             headers.pop()
         headers = [
-            header if header else f\"Unnamed_{idx + 1}\" for idx, header in enumerate(headers)
+            header if header else f"Unnamed_{idx + 1}" for idx, header in enumerate(headers)
         ]
         if not headers:
             raise ValueError(f"No headers detected in sheet: {sheet_name}")
 
         mapping = build_header_mapping(source_df.columns.tolist(), headers, config.min_score)
+        mapped_sources = {source for source in mapping.values() if source}
+        unmapped_sources = [col for col in source_df.columns if col not in mapped_sources]
+        note_columns = [
+            header
+            for header in headers
+            if normalize_header(header) in {"description", "comment", "comments"}
+        ]
         mapped = pd.DataFrame({
             target: source_df[mapping[target]] if mapping[target] in source_df.columns else pd.NA
             for target in headers
         })
+        if unmapped_sources and note_columns:
+            extra_notes = _build_leftover_series(source_df, unmapped_sources)
+            for note_column in note_columns:
+                mapped[note_column] = _append_text_series(mapped[note_column], extra_notes)
 
         existing = sheet_to_df(ws, header_row, headers)
         if config.key:
