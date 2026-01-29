@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inventory-intake-excel-mapper"
+version = "0.1.0"
+description = "Map data from multiple source Excel files into target Excel templates."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Inventory Intake Mapper" }]
+license = { text = "MIT" }
+dependencies = [
+  "pandas>=2.0",
+  "openpyxl>=3.1",
+  "rapidfuzz>=3.0",
+]
+
+[project.scripts]
+excel-mapper = "inventory_intake_excel_mapper.cli:main"
+
+[tool.setuptools]
+packages = ["inventory_intake_excel_mapper"]
