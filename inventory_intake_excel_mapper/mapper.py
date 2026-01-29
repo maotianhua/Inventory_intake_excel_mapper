@@ -209,6 +209,15 @@ def drop_zero_rows(df: pd.DataFrame, mode: str) -> pd.DataFrame:
     return df.loc[~mask].reset_index(drop=True)
 
 
+def drop_zero_quantity_rows(df: pd.DataFrame, quantity_column: Optional[str]) -> pd.DataFrame:
+    if not quantity_column:
+        return df
+    if quantity_column not in df.columns:
+        return df
+    mask = df[quantity_column].apply(_is_zero)
+    return df.loc[~mask].reset_index(drop=True)
+
+
 def fill_blanks(df: pd.DataFrame, fill_value: str) -> pd.DataFrame:
     df = df.copy()
     df = df.where(~df.isna(), fill_value)
@@ -385,6 +394,10 @@ def map_sources_to_target(
             for header in headers
             if normalize_header(header) in {"description", "comment", "comments"}
         ]
+        quantity_column = next(
+            (header for header in headers if normalize_header(header) == "quantity"),
+            None,
+        )
         mapped = pd.DataFrame(index=source_df.index)
         for target in headers:
             source_col = mapping.get(target)
@@ -406,6 +419,7 @@ def map_sources_to_target(
         elif config.append and not existing.empty:
             mapped = pd.concat([existing, mapped], ignore_index=True)
 
+        mapped = drop_zero_quantity_rows(mapped, quantity_column)
         mapped = drop_zero_rows(mapped, config.drop_zero_mode)
         mapped = fill_blanks(mapped, config.fill_value)
 
