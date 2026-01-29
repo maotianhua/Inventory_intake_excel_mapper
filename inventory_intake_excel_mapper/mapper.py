@@ -313,17 +313,17 @@ def apply_mapping_overrides(
             )
         if target_norm == "quantity":
             if "mob" in target_hint:
-                set_if_exists(target, ["usage in n7n30 main", "n7n30 main"])
+                set_if_exists(target, ["n7n30 main", "usage in n7n30 main"])
             elif "pam" in target_hint:
-                set_if_exists(target, ["usage in n7n30 pam", "n7n30 pam"])
+                set_if_exists(target, ["n7n30 pam", "usage in n7n30 pam"])
             else:
                 set_if_exists(
                     target,
                     [
-                        "usage in n7n30 main",
                         "n7n30 main",
-                        "usage in n7n30 pam",
                         "n7n30 pam",
+                        "usage in n7n30 main",
+                        "usage in n7n30 pam",
                     ],
                 )
 
@@ -380,8 +380,6 @@ def map_sources_to_target(
             headers,
             target_path,
         )
-        mapped_sources = {source for source in mapping.values() if source}
-        unmapped_sources = [col for col in source_df.columns if col not in mapped_sources]
         note_columns = [
             header
             for header in headers
@@ -394,8 +392,11 @@ def map_sources_to_target(
                 mapped[target] = source_df[source_col]
             else:
                 mapped[target] = pd.NA
-        if unmapped_sources and note_columns:
-            extra_notes = _build_leftover_series(source_df, unmapped_sources)
+        camtech_columns = [
+            col for col in source_df.columns if normalize_header(col) == "camtech pn"
+        ]
+        if camtech_columns and note_columns:
+            extra_notes = _build_leftover_series(source_df, camtech_columns)
             for note_column in note_columns:
                 mapped[note_column] = _append_text_series(mapped[note_column], extra_notes)
 
