@@ -168,7 +168,7 @@ def drop_zero_rows(df: pd.DataFrame, mode: str) -> pd.DataFrame:
         values = row.tolist()
         if mode == "any":
             return any(_is_zero(v) for v in values)
-        non_empty = [v for v in values if v not in (None, "")]
+        non_empty = [v for v in values if not is_blank(v)]
         if not non_empty:
             return True
         return all(_is_zero(v) for v in non_empty)
