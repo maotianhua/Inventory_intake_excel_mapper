@@ -478,6 +478,7 @@ def map_sources_to_target(
                     if rich_text is not None:
                         cell = ws.cell(row=row_idx, column=col_idx)
                         cell.value = rich_text
+                        cell.data_type = "inlineStr"
                         continue
                 ws.cell(row=row_idx, column=col_idx, value=_to_excel_value(value))
 
